@@ -1,11 +1,19 @@
-# Oracle XE 11g on Ubuntu 12.04 using Vagrant
+# JMeter results analysis - Oracle XE 11g on Ubuntu 12.04 using Vagrant
 
 This project enables you to install Oracle 11g XE in a virtual machine running Ubuntu 12.04, using
 [Vagrant] and [Puppet].
 
+After installation of Oracle, an [external table] is created, to allow a JMeter result file to be dropped in for querying.
+
+This is significantly faster than processing massive result files using scripts. On my machine, to produce overall stats for a file containing ~100M rows took < 6 minutes.
+
 ## Acknowledgements
 
-This project was created based on the information in
+The project [vagrant-ubuntu-oracle-xe] by Hilverd Reker was used as a starting point.
+
+Thanks to Hilverd. His acknowledgements have also been included in full below:
+
+The project was created based on the information in
 [Installing Oracle 11g R2 Express Edition on Ubuntu 64-bit] by Manish Raj, and the GitHub repository
 [vagrant-oracle-xe] by Stefan Glase. The former explains how to install Oracle XE 11g on Ubuntu
 12.04, without explicitly providing a Vagrant or provisioner configuration. The latter has the same
@@ -18,7 +26,7 @@ contributions.
 ## Requirements
 
 * You need to have [Vagrant] installed.
-* The host machine probably needs at least 4 GB of RAM (I have only tested 8 GB of RAM).
+* The host machine probably needs at least 4 GB of RAM.
 * As Oracle 11g XE is only available for 64-bit machines at the moment, the host machine needs to
   have a 64-bit architecture.
 * You may need to [enable virtualization] manually.
@@ -38,14 +46,6 @@ contributions.
   project. (Alternatively, you could keep the zip file in some other location and make a hard link
   to it from `modules/oracle/files`.)
 
-* *Optional:* To get [Flyway](http://flywaydb.org/) integration, download `ojdbc6.jar` for JDK 1.6 from
-    [Oracle Database 11g Release 2 11.2.0.4 JDBC Drivers](http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html),
-    and place it in the directory `oracle-jdbc` of this project.
-
-    Migrations are in `data-with-flyway/src/main/resources/database/migrations`.
-    See `data-with-flyway/README.md` for more instructions.
-    Many thanks to [Nicholas Blair](https://github.com/nblair) for contributing this feature.
-
 * Run `vagrant up` from the base directory of this project. The first time this will take a while -- up to 30 minutes on
   my machine. Please note that building the VM involves downloading an Ubuntu 12.04
   [base box](http://docs.vagrantup.com/v2/boxes.html) which is 323MB in size.
@@ -53,6 +53,38 @@ contributions.
 These steps are also shown in an [asciicast] made by Daekwon Kang:
 
 [![asciicast](https://asciinema.org/a/8438.png)](https://asciinema.org/a/8438)
+
+* Copy a JMeter result file in the directory `Data` and name it `jmeter.log`.
+
+The file is expected to be in CSV format (header row shown):
+
+    timeStamp;elapsed;label;responseCode;responseMessage;threadName;dataType;success;bytes;grpThreads;allThreads;Latency;SampleCount;ErrorCount;Hostname;"testid"
+
+jmeter.properties values used:
+
+    jmeter.save.saveservice.output_format=csv
+
+    jmeter.save.saveservice.default_delimiter=;
+
+    jmeter.save.saveservice.data_type=true
+    jmeter.save.saveservice.label=true
+    jmeter.save.saveservice.response_code=true
+
+    jmeter.save.saveservice.response_message=true
+    jmeter.save.saveservice.successful=true
+    jmeter.save.saveservice.thread_name=true
+    jmeter.save.saveservice.time=true
+    jmeter.save.saveservice.subresults=true
+    jmeter.save.saveservice.assertions=true
+    jmeter.save.saveservice.latency=true
+    jmeter.save.saveservice.bytes=true
+    jmeter.save.saveservice.hostname=true
+    jmeter.save.saveservice.thread_counts=true
+    jmeter.save.saveservice.sample_count=true
+
+    sample_variables=testid
+
+For different formats of data, you will need to modify the `/modules/oracle/files/create_jmeter_tables.sql` file before running `Vagrant up`.
 
 ## Connecting
 
@@ -78,6 +110,26 @@ You might need to add an entry to your `tnsnames.ora` file first:
         )
       )
 
+## Querying the JMeter results
+
+You should now be able to query the jmeter table:
+
+Sample SQL (update start/end time as per your requirements):
+
+    SELECT label,
+      success,
+      COUNT(*),
+      MIN(elapsed) min,
+      ROUND(AVG(elapsed),2) mean,
+      percentile_disc (0.95) within GROUP (ORDER BY elapsed) AS perc95,
+      MAX(elapsed) max,
+      ROUND(stddev(elapsed),2) stdev
+    FROM jmeter
+      WHERE ts > ((to_date('11/02/2016 12:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86.4)
+      AND ts   < ((to_date('11/02/2016 13:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86.4)
+    GROUP BY label,
+      success;
+
 ## Troubleshooting
 
 ### Errors when Unzipping
@@ -90,7 +142,7 @@ It is important to assign enough memory to the virtual machine, otherwise you wi
 
     ORA-00845: MEMORY_TARGET not supported on this system
 
-during the configuration stage. In the `Vagrantfile` 512 MB is assigned. Lower values may also work,
+during the configuration stage. In the `Vagrantfile` 1024 MB is assigned. Lower values may also work,
 as long as (I believe) 2 GB of virtual memory is available for Oracle, swap is included in this
 calculation.
 
@@ -127,3 +179,7 @@ You may also want to consider a Docker-based solution such as
 [How many connections can Oracle Express Edition (XE) handle?]: http://stackoverflow.com/questions/906541/how-many-connections-can-oracle-express-edition-xe-handle
 
 [enable virtualization]: http://www.sysprobs.com/disable-enable-virtualization-technology-bios
+
+[external table]: https://docs.oracle.com/cd/B28359_01/server.111/b28319/et_concepts.htm
+
+[vagrant-ubuntu-oracle-xe]: https://github.com/hilverd/vagrant-ubuntu-oracle-xe

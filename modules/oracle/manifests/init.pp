@@ -24,6 +24,9 @@ class oracle::server {
     "/tmp/S01shm_load":
       mode => 0755,
       source => "puppet:///modules/oracle/S01shm_load";
+    "/tmp/create_jmeter_tables.sql":
+      mode => 0555,
+      source => "puppet:///modules/oracle/create_jmeter_tables.sql";
   }
 
   # If we're running on Windows, then Git may have converted line endings to CRLF upon cloning the
@@ -41,8 +44,11 @@ class oracle::server {
       command => "/usr/bin/dos2unix -n /tmp/S01shm_load /etc/rc2.d/S01shm_load",
       creates => "/etc/rc2.d/S01shm_load",
       require => [File["/tmp/S01shm_load"], Package["dos2unix"]];
+    "dos2unix create_jmeter_tables.sql":
+      command => "/usr/bin/dos2unix /tmp/create_jmeter_tables.sql",
+      require => [File["/tmp/create_jmeter_tables.sql"], Package["dos2unix"]];
   }
-
+  
   user {
     "syslog":
       ensure => present,
@@ -176,4 +182,14 @@ class oracle::xe {
                   Exec["dos2unix chkconfig"],
                   Exec["dos2unix 60-oracle.conf"]],
   }
+
+  exec { 'create-table-for-jmeter':
+   path => '/u01/app/oracle/product/11.2.0/xe/bin',
+   command => 'sqlplus -s system/manager@xe < /tmp/create_jmeter_tables.sql',
+   logoutput => true,
+   environment => 'ORACLE_HOME=/u01/app/oracle/product/11.2.0/xe',
+   require => [Service["oracle-xe"],
+                  Exec["dos2unix create_jmeter_tables.sql"]];
+  }
+
 }
