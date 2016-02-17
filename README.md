@@ -125,8 +125,8 @@ Sample SQL (update start/end time as per your requirements):
       MAX(elapsed) max,
       ROUND(stddev(elapsed),2) stdev
     FROM jmeter
-      WHERE ts > ((to_date('11/02/2016 12:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86.4)
-      AND ts   < ((to_date('11/02/2016 13:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86.4)
+      WHERE ts > ((to_date('11/02/2016 12:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86400000)
+      AND ts   < ((to_date('11/02/2016 13:00:00', 'DD/MM/YYYY HH24:Mi:ss') - TO_DATE('1970-01-01', 'YYYY-MM-DD'))* 86400000)
     GROUP BY label,
       success;
 
